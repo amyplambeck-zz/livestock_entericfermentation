@@ -245,7 +245,51 @@ allcounty <- countylivestockemissions %>%
   spread(key = data_item, value = emissions) 
 
 ```
+```{r}
+anokaall = sum (allcounty$`ALL CATTLE (EMISSION ESTIMATE)`[12], allcounty$`ALL EQUINE (EMISSION ESTIMATE)`[13], allcounty$`GOATS - INVENTORY`[8], allcounty$`HOGS - INVENTORY`[2], allcounty$`SHEEP, INCL LAMBS - INVENTORY`[6], na.rm=TRUE)
 
+carverall = sum (allcounty$`ALL CATTLE (EMISSION ESTIMATE)`[25], allcounty$`ALL EQUINE (EMISSION ESTIMATE)`[26], allcounty$`GOATS - INVENTORY`[15], allcounty$`HOGS - INVENTORY`[23], allcounty$`SHEEP, INCL LAMBS - INVENTORY`[17], na.rm=TRUE)
+
+dakotaall = sum (allcounty$`ALL CATTLE (EMISSION ESTIMATE)`[38], allcounty$`ALL EQUINE (EMISSION ESTIMATE)`[39], allcounty$`GOATS - INVENTORY`[28], allcounty$`HOGS - INVENTORY`[36], allcounty$`SHEEP, INCL LAMBS - INVENTORY`[30], na.rm=TRUE)
+
+hennepinall = sum (allcounty$`ALL CATTLE (EMISSION ESTIMATE)`[51], allcounty$`ALL EQUINE (EMISSION ESTIMATE)`[52], allcounty$`GOATS - INVENTORY`[42], allcounty$`HOGS - INVENTORY`[41], allcounty$`SHEEP, INCL LAMBS - INVENTORY`[44], na.rm=TRUE)
+
+ramseyall = sum (allcounty$`ALL CATTLE (EMISSION ESTIMATE)`[62], allcounty$`ALL EQUINE (EMISSION ESTIMATE)`[63], allcounty$`GOATS - INVENTORY`[], allcounty$`HOGS - INVENTORY`[], allcounty$`SHEEP, INCL LAMBS - INVENTORY`[60], na.rm=TRUE)
+
+scottall = sum (allcounty$`ALL CATTLE (EMISSION ESTIMATE)`[75], allcounty$`ALL EQUINE (EMISSION ESTIMATE)`[76], allcounty$`GOATS - INVENTORY`[67], allcounty$`HOGS - INVENTORY`[65], allcounty$`SHEEP, INCL LAMBS - INVENTORY`[66], na.rm=TRUE)
+
+washingtonall = sum (allcounty$`ALL CATTLE (EMISSION ESTIMATE)`[88], allcounty$`ALL EQUINE (EMISSION ESTIMATE)`[89], allcounty$`GOATS - INVENTORY`[82], allcounty$`HOGS - INVENTORY`[78], allcounty$`SHEEP, INCL LAMBS - INVENTORY`[80],na.rm=TRUE)
+```
+
+```{r}
+allcounty <- allcounty %>% 
+  mutate("ALL LIVESTOCK EMISSIONS" = ifelse(county == "ANOKA", anokaall,
+                                     ifelse(county == "CARVER", carverall,
+                                            ifelse(county == "DAKOTA", dakotaall,
+                                                   ifelse(county == "HENNEPIN", hennepinall,
+                                                          ifelse(county == "RAMSEY", ramseyall,
+                                                                 ifelse(county == "SCOTT", scottall,
+                                                                        ifelse(county == "WASHINGTON", washingtonall))))))))
+
+```
+
+```{r}
+allcounty<-allcounty %>% 
+  gather(key = data_item, value = emissions, "ALL CATTLE (EMISSION ESTIMATE)": "ALL LIVESTOCK EMISSIONS" ) %>% 
+  select(data_item, county, data_item, emissions, year, co_code) %>% 
+  filter (data_item == "ALL LIVESTOCK EMISSIONS") %>% 
+  unique()
+```
+
+```{r}
+countylivestockemissions <- bind_rows(countylivestockemissions, allcounty)
+```
+
+```{r}
+countylivestockemissions$`LIVESTOCK TYPE`[is.na(countylivestockemissions$`LIVESTOCK TYPE`)] <- "ALL LIVESTOCK"
+countylivestockemissions$commodity[is.na(countylivestockemissions$commodity)] <- "ALL LIVESTOCK"
+countylivestockemissions$livestock_type[is.na(countylivestockemissions$livestock_type)] <- "ALL LIVESTOCK"
+```
 
 
 
