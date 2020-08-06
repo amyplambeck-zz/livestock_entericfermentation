@@ -3,7 +3,7 @@
 This project calculates approximate methane emissions (measured in metric tons of CO2 equivalent) from enteric fermentation in the Twin Cities 7 county region. Its purpose is to contribute to the Metropolitan Council Research division's growing Greenhouse Gas Inventory. Cattle and other mammalian livestock are a significant source of methane, which has the potential to exacerbate global climate change. This inventory is being put together in order to provide public data on these greenhouse gases -- where they are coming from, and how much. 
 
 ## Code
-All code is in R.
+All code is done in R.
 
 ## Method
 
