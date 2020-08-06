@@ -1,0 +1,272 @@
+---
+title: "Livestock inventory - emissions from enteric fermentation"
+author: "Amy Plambeck"
+date: "7/24/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, results= "hide",warning=FALSE, message=FALSE}
+library(tidyverse)
+library(sf)
+library(lsr)
+library(readxl)
+```
+
+# Calculating enteric fermentation emissions from livestock on county level
+
+## 1. Data
+
+## 1.1 Import source data
+
+County level livestock data (USDA NASS)
+```{r}
+livestock_inventory<- read_excel("C:/Users/PlambeA/Metropolitan Council/Leon, Mauricio - 01_ghg_inventory/01_data/0106_livestock_and_agriculture/010601_livestock/usda_livestock_2017.xlsx")
+```
+
+Import emissions factor table
+
+(kg CH4/head/year)
+
+```{r}
+emissions_factors <- read_excel("C:/Users/PlambeA/Metropolitan Council/Leon, Mauricio - 01_ghg_inventory/01_data/0106_livestock_and_agriculture/010601_livestock/emissions_factors.xlsx",
+                                range = "A1:D16")
+```
+
+## 1.2 Merge emissions factor table to livestock inventory 
+
+Doesn't include calves (yet)
+
+```{r}
+livestock_inventory_EF <- merge(livestock_inventory, emissions_factors, by.x = "data_item", by.y = "USDA EQ" )
+```
+
+## 1.3 Estimate the number of cattle calves. 
+
+Since actual data for the number of calves per county doesn't exist, this will approximate using a ratio of calves/all cattle in Minnesota in that given year. This is an estimate (without margins of error!) and should be taken with more than a grain of salt. 
+
+
+```{r}
+# To illustrate where the calf to cattle ratio comes from-- 
+
+usda_calves <- read_excel("C:/Users/PlambeA/Metropolitan Council/Leon, Mauricio - 01_ghg_inventory/01_data/0106_livestock_and_agriculture/010601_livestock/USDA_calves.xlsx")
+
+usda_calves_wide <- usda_calves %>%
+  spread(key = "Data Item", value = "Value") 
+
+usda_calves_wide <-usda_calves_wide %>% 
+  mutate("Calf to Cattle Ratio" = usda_calves_wide$"CATTLE, CALVES - INVENTORY"[2] / usda_calves_wide$"CATTLE, INCL CALVES - INVENTORY"[1])
+
+#Storing the ratio as a value-- 
+
+calfcattleratio <- usda_calves_wide$"CATTLE, CALVES - INVENTORY"[2] / usda_calves_wide$"CATTLE, INCL CALVES - INVENTORY"[1] 
+```
+
+```{r}
+#And finally, creating new rows of calf estimates
+countycalves <-
+  livestock_inventory%>% 
+  filter(data_item == "CATTLE, INCL CALVES - INVENTORY") %>% 
+  spread(key = data_item, value = value) 
+
+countycalves <-countycalves %>% 
+  mutate("CATTLE, CALVES (ESTIMATE) - INVENTORY" = countycalves$'CATTLE, INCL CALVES - INVENTORY' * calfcattleratio) %>% 
+  gather (key = data_item, value = value, "CATTLE, INCL CALVES - INVENTORY":"CATTLE, CALVES (ESTIMATE) - INVENTORY") %>% 
+  filter (data_item == "CATTLE, CALVES (ESTIMATE) - INVENTORY") %>% 
+  merge (emissions_factors, by.x = "data_item", by.y = "USDA EQ")
+
+```
+
+
+## 1.4 Bind livestock and calf estimates into one table
+
+And get rid of the field "CATTLE, INCL CALVES - INVENTORY)
+
+```{r}
+countylivestock <- rbind(livestock_inventory_EF, countycalves) %>% 
+  filter(data_item != "CATTLE, INCL CALVES - INVENTORY")
+```
+
+
+
+## 2. Analysis: Calculating emissions 
+
+
+
+## 2.1 Calculating emissions for each inventory group, adding to table
+
+*Setting some values* 
+
+```{r}
+methaneGWP = 25
+kg_mt = 1/1000
+```
+
+The equation should be *population x EF x 1/1000 (the conversion factor to metric tons from kg) x GWP)*
+
+Emissions measured in metric tons of CO2 equivalents/year
+
+*A value for emissions from all cattle isn't possible, since one cow might be counted under multiple different data items*
+
+*Cattle calf emissions are calculated using the average EF between dairy and beef calves. Since their emissions factors are 12 and 10 respectively, emissions will be estimated to be 11*
+
+```{r}
+countylivestockemissions <- countylivestock %>% 
+  mutate(emissions = value * `EF (kg CH4/head/year)` * kg_mt * methaneGWP)
+```
+
+
+## 2.2 Estimating total emissions from all cattle
+
+```{r}
+cattle <- countylivestockemissions %>% 
+  select(county, value,`EF (kg CH4/head/year)`, emissions, data_item, livestock_type, year, co_code, commodity) %>% 
+  filter (livestock_type == "CATTLE") %>% 
+  group_by(county)
+
+```
+
+```{r}
+
+anoka_cattle_emissions = sum( (cattle$emissions[1] - (cattle$value[6]*cattle$`EF (kg CH4/head/year)`[1]* kg_mt * methaneGWP)), cattle$emissions[6],cattle$emissions[3],cattle$emissions[4],na.rm = TRUE)
+
+#Anoka county reports NA for dairy cows, actual emissions may be higher. 
+
+carver_cattle_emissions = sum( (cattle$emissions[7] - (cattle$value[12]*cattle$`EF (kg CH4/head/year)`[7]* kg_mt * methaneGWP)), cattle$emissions[12],cattle$emissions[9], cattle$emissions[10], na.rm = TRUE)
+
+dakota_cattle_emissions = sum( (cattle$emissions[13] - (cattle$value[18]*cattle$`EF (kg CH4/head/year)`[13]* kg_mt * methaneGWP)), cattle$emissions[18],cattle$emissions[15], cattle$emissions[16], na.rm = TRUE)
+
+hennepin_cattle_emissions = sum( (cattle$emissions[19] - (cattle$value[24]*cattle$`EF (kg CH4/head/year)`[19]* kg_mt * methaneGWP)), cattle$emissions[24],cattle$emissions[21], cattle$emissions[22], na.rm = TRUE)
+
+ramsey_cattle_emissions = sum( (cattle$emissions[25] - (cattle$value[30]*cattle$`EF (kg CH4/head/year)`[25]* kg_mt * methaneGWP)), cattle$emissions[30],cattle$emissions[27], cattle$emissions[28], na.rm = TRUE)
+
+scott_cattle_emissions = sum( (cattle$emissions[31] - (cattle$value[36]*cattle$`EF (kg CH4/head/year)`[31]* kg_mt * methaneGWP)), cattle$emissions[36],cattle$emissions[33], cattle$emissions[34], na.rm = TRUE)
+
+washington_cattle_emissions = sum( (cattle$emissions[37] - (cattle$value[42]*cattle$`EF (kg CH4/head/year)`[37]* kg_mt * methaneGWP)), cattle$emissions[42],cattle$emissions[39], cattle$emissions[40], na.rm = TRUE)
+```
+
+```{r}
+cattle <- cattle %>% 
+  mutate("ALL CATTLE (EMISSION ESTIMATE)" = ifelse(county == "ANOKA", anoka_cattle_emissions,
+                                     ifelse(county == "CARVER", carver_cattle_emissions,
+                                            ifelse(county == "DAKOTA", dakota_cattle_emissions,
+                                                   ifelse(county == "HENNEPIN", hennepin_cattle_emissions,
+                                                          ifelse(county == "RAMSEY", ramsey_cattle_emissions,
+                                                                 ifelse(county == "SCOTT", scott_cattle_emissions,
+                                                                        ifelse(county == "WASHINGTON", washington_cattle_emissions))))))))
+
+```
+
+```{r}
+cattle <- cattle %>% 
+  spread(key = data_item, value = emissions)
+```
+
+```{r}
+cattle<-cattle %>% 
+  gather(key = data_item, value = emissions, "ALL CATTLE (EMISSION ESTIMATE)": "CATTLE, ON FEED - INVENTORY" ) %>% 
+  select(data_item, county, data_item, emissions, livestock_type, year, co_code, commodity) %>% 
+  filter (data_item == "ALL CATTLE (EMISSION ESTIMATE)") %>% 
+  unique()
+```
+
+```{r}
+countylivestockemissions <- bind_rows(countylivestockemissions, cattle)
+```
+
+```{r}
+countylivestockemissions$`LIVESTOCK TYPE`[is.na(countylivestockemissions$`LIVESTOCK TYPE`)] <- "ALL CATTLE"
+```
+
+## 2.3 Estimating total emissions from all equine livestock
+
+```{r}
+equine <- countylivestockemissions %>% 
+  select(county, value,`EF (kg CH4/head/year)`, emissions, data_item, livestock_type, year, co_code, commodity) %>% 
+  filter (livestock_type == "HORSES") %>% 
+  group_by(county) %>% 
+  spread(key = data_item, value = emissions) 
+
+  
+```
+
+```{r}
+anokaequine = sum (equine$`EQUINE, HORSES & PONIES - INVENTORY`[2], equine$`EQUINE, MULES & BURROS & DONKEYS - INVENTORY`[1], na.rm=TRUE)
+
+carverequine = sum (equine$`EQUINE, HORSES & PONIES - INVENTORY`[4], equine$`EQUINE, MULES & BURROS & DONKEYS - INVENTORY`[3], na.rm=TRUE)
+
+dakotaequine = sum (equine$`EQUINE, HORSES & PONIES - INVENTORY`[6], equine$`EQUINE, MULES & BURROS & DONKEYS - INVENTORY`[5], na.rm=TRUE)
+
+hennepinequine = sum (equine$`EQUINE, HORSES & PONIES - INVENTORY`[8], equine$`EQUINE, MULES & BURROS & DONKEYS - INVENTORY`[7], na.rm=TRUE)
+
+ramseyequine = sum (equine$`EQUINE, HORSES & PONIES - INVENTORY`[10], equine$`EQUINE, MULES & BURROS & DONKEYS - INVENTORY`[9], na.rm=TRUE)
+
+scottequine = sum (equine$`EQUINE, HORSES & PONIES - INVENTORY`[12], equine$`EQUINE, MULES & BURROS & DONKEYS - INVENTORY`[11], na.rm=TRUE)
+
+washingtonequine = sum (equine$`EQUINE, HORSES & PONIES - INVENTORY`[14], equine$`EQUINE, MULES & BURROS & DONKEYS - INVENTORY`[13], na.rm=TRUE)
+```
+
+```{r}
+equine <- equine %>% 
+  mutate("ALL EQUINE (EMISSION ESTIMATE)" = ifelse(county == "ANOKA", anokaequine,
+                                     ifelse(county == "CARVER", carverequine,
+                                            ifelse(county == "DAKOTA", dakotaequine,
+                                                   ifelse(county == "HENNEPIN", hennepinequine,
+                                                          ifelse(county == "RAMSEY", ramseyequine,
+                                                                 ifelse(county == "SCOTT", scottequine,
+                                                                        ifelse(county == "WASHINGTON", washingtonequine))))))))
+
+```
+```{r}
+equine<-equine %>% 
+  gather(key = data_item, value = emissions, "ALL EQUINE (EMISSION ESTIMATE)": "EQUINE, HORSES & PONIES - INVENTORY" ) %>% 
+  select(data_item, county, data_item, emissions, livestock_type, year, co_code, commodity) %>% 
+  filter (data_item == "ALL EQUINE (EMISSION ESTIMATE)") %>% 
+  unique()
+```
+
+```{r}
+countylivestockemissions <- bind_rows(countylivestockemissions, equine)
+```
+
+```{r}
+countylivestockemissions$`LIVESTOCK TYPE`[is.na(countylivestockemissions$`LIVESTOCK TYPE`)] <- "ALL EQUINE"
+```
+
+## Calculating county total emissions from all livestock
+
+```{r}
+allcounty <- countylivestockemissions %>% 
+  select(county, value,`EF (kg CH4/head/year)`, emissions, data_item, livestock_type, year, co_code, commodity) %>% 
+  group_by(county) %>% 
+  spread(key = data_item, value = emissions) 
+
+```
+
+
+
+
+*---------------------------------------------------------------------* 
+
+## 3. Results
+
+```{r}
+countylivestockemissions<- countylivestockemissions %>% 
+  group_by(county)
+
+countylivestockemissions %>% 
+  select (county, value, `EF (kg CH4/head/year)`, emissions, data_item, year) %>% 
+  sortFrame(data_item, alphabetical = TRUE) %>% 
+  sortFrame (county, alphabetical = TRUE) %>%
+  head()
+```
+
+
+
+
+
+
+
