@@ -24,7 +24,7 @@ Emissions factors are the multiplier associated with each head of livestock (eac
 The .rmd is annotated, but additional information may be helpful. 
 
 ## 1: Data
-- 1.1: Data for the livestock totals are sourced from the USDA NASS dataset, but 7 county specific data used here are compiled by Metro Council. Data were collected at the end of December 2017. The emissions factor table was made from the Minnesota regional emissions factors from the EPA, sourced above. This table was compiled by myself and is stored with Metro Council. A field has been made for compatibility with the USDA dataset. Change paths for these files if replicating this process! 
+- 1.1: Data for the livestock totals are sourced from the USDA NASS dataset, but 7 county specific data used here are compiled by Metro Council. Data were collected at the end of December 2017. The emissions factor table was made from the Minnesota regional emissions factors from the EPA, sourced above. This table was compiled by myself and is stored with Metro Council. A field has been made for compatibility with the USDA dataset. (If replicating this process, just change the path.) 
 
 - 1.2: Merging the emissions factor table with the livestock dataset for ease of use. 
 
